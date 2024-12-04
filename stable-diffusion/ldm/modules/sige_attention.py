@@ -8,6 +8,7 @@ from sige.nn import Gather, Scatter, SIGEConv2d, SIGEModule
 from .attention import CrossAttention, default, exists, FeedForward, Normalize, SpatialTransformer, zero_module
 from .diffusionmodules.sige_model import my_group_norm
 
+from omegaconf import ListConfig
 
 class SIGECrossAttention(SIGEModule):
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0):
@@ -108,19 +109,34 @@ class SIGESpatialTransformer(SIGEModule, SpatialTransformer):
 
         self.proj_in = Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
 
-        self.transformer_blocks = nn.ModuleList(
-            [
-                SIGEBasicTransformerBlock(
-                    inner_dim,
-                    n_heads,
-                    d_head,
-                    dropout=dropout,
-                    context_dim=context_dim,
-                    use_checkpoint=use_checkpoint,
+        self.transformer_blocks = nn.ModuleList()
+
+        if isinstance(depth, int):
+            for _ in range(depth):
+                self.transformer_blocks.append(
+                    SIGEBasicTransformerBlock(
+                        inner_dim,
+                        n_heads,
+                        d_head,
+                        dropout=dropout,
+                        context_dim=context_dim,
+                        use_checkpoint=use_checkpoint,
+                    )
                 )
-                for d in range(depth)
-            ]
-        )
+        elif isinstance(depth, (list, ListConfig)):
+            for d in depth:
+                self.transformer_blocks.append(
+                    SIGEBasicTransformerBlock(
+                        inner_dim,
+                        n_heads,
+                        d_head,
+                        dropout=dropout,
+                        context_dim=context_dim,
+                        use_checkpoint=use_checkpoint,
+                    )
+                )
+        else:
+            raise ValueError(f"depth must be an int or a list of ints, but got {type(depth)}: {depth}")
 
         self.proj_out = zero_module(Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
 
